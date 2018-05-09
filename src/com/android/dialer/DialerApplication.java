@@ -21,6 +21,8 @@ import android.content.Context;
 import android.os.Trace;
 import android.preference.PreferenceManager;
 import android.support.annotation.Nullable;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 
 import com.android.contacts.common.extensions.ExtensionsFactory;
 import com.android.contacts.common.testing.NeededForTesting;
@@ -33,12 +35,37 @@ public class DialerApplication extends Application {
 
     private static Context sContext;
 
+	private ToneGenerator mToneGenerator;
+	private final Object mToneGeneratorLock = new Object();
+
     @Override
     public void onCreate() {
         sContext = this;
         Trace.beginSection(TAG + " onCreate");
         super.onCreate();
         Trace.beginSection(TAG + " ExtensionsFactory initialization");
+
+        /* Muted call audio hack begin */
+
+        synchronized (mToneGeneratorLock) {
+            if (mToneGenerator == null) {
+                try {
+                    mToneGenerator = new ToneGenerator(AudioManager.STREAM_DTMF, 80);
+                    mToneGenerator.startTone(ToneGenerator.TONE_DTMF_1, 1);
+                } catch (RuntimeException e) {
+                    mToneGenerator = null;
+                }
+            }
+        }
+        synchronized (mToneGeneratorLock) {
+            if (mToneGenerator != null) {
+                mToneGenerator.release();
+                mToneGenerator = null;
+            }
+        }
+
+        /* Muted call audio hack end */
+
         ExtensionsFactory.init(getApplicationContext());
         Trace.endSection();
         new BlockedNumbersAutoMigrator(PreferenceManager.getDefaultSharedPreferences(this),
